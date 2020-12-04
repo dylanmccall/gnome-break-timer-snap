@@ -1,0 +1,112 @@
+name: gnome-break-timer
+adopt-info: gnome-break-timer
+
+type: app
+grade: stable
+confinement: strict
+base: core18
+
+apps:
+  daemon:
+    autostart: org.gnome.BreakTimer.desktop
+    command: desktop-launch gnome-break-timer-wrapper.sh daemon
+    extensions: [gnome-3-34]
+    plugs:
+    - desktop
+    - desktop-legacy
+    - wayland
+    - x11
+    - audio-playback
+    - gsettings
+    - screen-inhibit-control
+    slots:
+    - daemon-dbus
+  settings:
+    common-id: org.gnome.BreakTimer
+    desktop: usr/share/applications/org.gnome.BreakTimer.Settings.desktop
+    command: desktop-launch gnome-break-timer-wrapper.sh settings
+    extensions: [gnome-3-34]
+    plugs:
+    - desktop
+    - desktop-legacy
+    - wayland
+    - x11
+    - audio-playback
+    - gsettings
+    slots:
+    - settings-dbus
+
+parts:
+  libcanberra:
+    source: git://git.0pointer.de/libcanberra
+    source-type: git
+    plugin: autotools
+    configflags:
+    - --prefix=/snap/gnome-break-timer/current/usr
+    - --enable-pulse
+    - --enable-gstreamer
+    - --enable-gtk3
+    - --enable-alsa
+    - --disable-oss
+    organize:
+      snap/gnome-break-timer/current/usr: usr
+    build-packages:
+    - libudev-dev
+    - gtk-doc-tools
+
+  gsound:
+    after: [libcanberra]
+    source: https://gitlab.gnome.org/GNOME/gsound.git
+    source-type: git
+    plugin: autotools
+    configflags:
+    - --prefix=/snap/gnome-break-timer/current/usr
+    - --disable-Werror
+    organize:
+      snap/gnome-break-timer/current/usr: usr
+    build-packages:
+    - intltool
+    - valac
+
+  gnome-break-timer:
+    after: [gsound]
+    source-type: git
+    source: https://gitlab.gnome.org/GNOME/gnome-break-timer.git
+    source-branch: master
+    plugin: meson
+    meson-parameters:
+    - --prefix=/snap/gnome-break-timer/current/usr
+    parse-info:
+    - usr/share/metainfo/org.gnome.BreakTimer.metainfo.xml
+    organize:
+      snap/gnome-break-timer/current/usr: usr
+    override-build: |
+      sed -i.bak -e 's|=@APPLICATION_ID@$|=${SNAP}/meta/gui/@APPLICATION_ID@.svg|g' data/applications/org.gnome.BreakTimer.Settings.desktop.in.in
+      sed -i.bak -e 's|=@APPLICATION_ID@$|=${SNAP}/meta/gui/@APPLICATION_ID@.svg|g' data/applications/org.gnome.BreakTimer.Daemon.desktop.in.in
+      snapcraftctl build
+      mkdir -p ${SNAPCRAFT_PART_INSTALL}/meta/gui
+      cp data/icons/hicolor/scalable/apps/org.gnome.BreakTimer.svg ${SNAPCRAFT_PART_INSTALL}/meta/gui/org.gnome.BreakTimer.svg
+      cp data/icons/hicolor/symbolic/apps/org.gnome.BreakTimer-symbolic.svg ${SNAPCRAFT_PART_INSTALL}/meta/gui/org.gnome.BreakTimer-symbolic.svg
+    build-packages:
+    - appstream
+    - appstream-util
+    - desktop-file-utils
+    - gettext
+
+  snap-gnome-break-timer-sh:
+    source-type: local
+    source: src
+    plugin: nil
+    override-build: |
+      install -m755 -D -t ${SNAPCRAFT_PART_INSTALL}/usr/bin snap-gnome-break-timer.sh
+
+slots:
+  daemon-dbus:
+    interface: dbus
+    bus: session
+    name: org.gnome.BreakTimer
+  settings-dbus:
+    interface: dbus
+    bus: session
+    name: org.gnome.BreakTimer.Settings
+
